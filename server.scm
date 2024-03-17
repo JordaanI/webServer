@@ -26,12 +26,13 @@
 				       local-port-number: 8080
 				       eol-encoding: 'cr-lf
 				       reuse-address: #t))))
-    (println "Server started on loopback address")
+    (println "Server Started")
     (let loop ()
       (let ((connection (read server)))
-	(thread-start! (make-thread
-			(lambda ()
-			  (serve connection))))
+	;(thread-start! (make-thread
+			;(lambda ()
+	(serve connection)
+	;)))
 	(loop)))))
 
 ;;;
@@ -39,26 +40,51 @@
 ;;;
   
 (define (serve connection)
-  (let loop ((line (read-line connection)))
-    (if (string=? "" line)
-	(begin
-	  (display http-response connection)
-	  (force-output connection)
-	  (close-port connection))
-	(begin
-	  (display line)
-	  (loop (read-line connection))))))
+
+  (define (serve-get-to path) ;should parse path and eval it. That eval should return a string that can be asnwered to request, should contain content type and return string
+    (let ((parsed-path (parse-path path)))
+      (display (table->list parsed-path))
+      (newline)
+      "{}"))
+
+  (define (answer protocol code return)
+    (display (string-append
+	      protocol " "
+	      code
+	      "\r\nContent-type: application/json\r\n\r\n"
+	      return)
+	     connection)
+    (close-port connection))
+
+  (let* ((http-header (read-http-headers connection))
+	 (path (cadr http-header))
+	 (protocol (caddr http-header)))
+    (cond
+     ((equal? (car http-header) "GET")
+      (answer protocol "200 OK" (serve-get-to path)))
+     (#t (raise 'unknown-command)))))
 
 (define (read-http-headers connection)
   (let loop ((line (read-line connection)))
     (if (string=? line "") '()
-	(append (string-split line #\space) (loop (read-line connection))))))
+	(append (split-string line #\space) (loop (read-line connection))))))
 
-
-(define http-response
-  "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, world!\r\n")
 ;;;
-;;;; Server Start
+;;;;Parse Path
+;;;
+
+(define (parse-path path)
+  (let* ((nsf-pair (cdr (split-string path #\/)))
+	 (ns (string-append (car nsf-pair) "#"))
+	 (f-a (split-string (cadr nsf-pair) #\?))
+	 (a (split-string (cadr f-a) #\&))
+	 (args (map (lambda (a)
+		      (split-string a #\=))
+		    a)))
+    (list->table `((fnq . ,(string-append ns (car f-a))) (args ,@args)))))
+
+;;;
+;;;;Start Server
 ;;;
 
 (server)
