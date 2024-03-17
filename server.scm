@@ -42,10 +42,16 @@
 (define (serve connection)
 
   (define (serve-get-to path) ;should parse path and eval it. That eval should return a string that can be asnwered to request, should contain content type and return string
-    (let ((parsed-path (parse-path path)))
-      (display (table->list parsed-path))
-      (newline)
-      "{}"))
+    (let ((parsed-path (parse-path path))) 
+      (with-output-to-file
+	  (list path: ".serverlog"
+		append: #t)
+	(lambda ()
+	  (display (time->seconds (current-time)))
+	  (display ":\n")
+	  (display (table->list parsed-path))
+	  (display "\r\n\r\n")))
+       ((eval (string->symbol (table-ref parsed-path 'fnq))))))
 
   (define (answer protocol code return)
     (display (string-append
@@ -77,14 +83,19 @@
   (let* ((nsf-pair (cdr (split-string path #\/)))
 	 (ns (string-append (car nsf-pair) "#"))
 	 (f-a (split-string (cadr nsf-pair) #\?))
-	 (a (split-string (cadr f-a) #\&))
+	 (a (if (> (length f-a) 1) (split-string (cadr f-a) #\&) '()))
 	 (args (map (lambda (a)
 		      (split-string a #\=))
 		    a)))
     (list->table `((fnq . ,(string-append ns (car f-a))) (args ,@args)))))
+
+
+(define (test)
+  "{}")
 
 ;;;
 ;;;;Start Server
 ;;;
 
 (server)
+
