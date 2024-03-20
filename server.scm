@@ -51,7 +51,7 @@
 	  (display ":\n")
 	  (display (table->list parsed-path))
 	  (display "\r\n\r\n")))
-       ((eval (string->symbol (table-ref parsed-path 'fnq))))))
+       (apply (eval (string->symbol (table-ref parsed-path 'fnq))) (table-ref parsed-path 'args))))
 
   (define (answer protocol code return)
     (display (string-append
@@ -79,19 +79,25 @@
 ;;;;Parse Path
 ;;;
 
+(define (parse-args ap)
+  (cons (string->keyword (car ap)) (cdr ap)))
+
 (define (parse-path path)
   (let* ((nsf-pair (cdr (split-string path #\/)))
 	 (ns (string-append (car nsf-pair) "#"))
 	 (f-a (split-string (cadr nsf-pair) #\?))
 	 (a (if (> (length f-a) 1) (split-string (cadr f-a) #\&) '()))
-	 (args (map (lambda (a)
-		      (split-string a #\=))
-		    a)))
+	 (args (flatten
+		(map parse-args
+		     (map (lambda (a)
+			    (split-string a #\=))
+			  a)))))
     (list->table `((fnq . ,(string-append ns (car f-a))) (args ,@args)))))
 
 
-(define (test)
-  "{}")
+(define (test #!key a b)
+  (string-append
+   "{\"a\":" a ", \"b\":" b "}"))
 
 ;;;
 ;;;;Start Server
