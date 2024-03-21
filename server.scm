@@ -57,7 +57,9 @@
     (let loop ((line (read-line connection)))
       (if (string=? line "") '()
 	  (append (split-string line #\space) (loop (read-line connection))))))
-
+					; Activate Function
+  (define (activate-fnq fnq)
+    (eval (string->symbol fnq)))
 					; Parse Path
   (define (parse-path path)
 					; Parse Args
@@ -73,18 +75,17 @@
 		       (map (lambda (a)
 			      (split-string a #\=))
 			    a)))))
-      (list->table `((fnq . ,(eval (string->symbol (string-append ns (car f-a))))) (args ,@args)))))
-					; Serve GET
-  (define (serve-get parsed-path)
-					; Answer 200
-    (define (answer-200 type string)
+      (list->table `((fnq . ,(string-append ns (car f-a))) (args ,@args)))))
+					; Answer 200/1
+  
+    (define (answer-OK type return #!key (code "200 OK\n"))
       (display (string-append
-		protocol "200 OK\n"
-		"Content-Type: " type
-		"\nContent-Length: " (number->string (string-length string)) "\r\n\r\n"
-		string)
+		protocol code
+		"Content-Type: " type  "\n"
+		"Content-Length: " (number->string (string-length return)) "\r\n\r\n"
+	        return)
 	       connection))
-					; Answer 204
+    					; Answer 204
     (define (answer-204)
       (display (string-append
 		protocol "204 No Content\n"
@@ -93,17 +94,18 @@
 					; Answer 404
     (define (answer-404)
       (display (string-append
-		"HTTP/1.1 404 Not Found\n"
+		protocol  "404 Not Found\n"
 		"Content-Type: text/plain\n"
 		"Content-Length: 13\r\n\r\n"
 		"Not Found")
 	       connection))
-    
-    (let ((return (apply (table-ref parsed-path 'fnq) (table-ref parsed-path 'args))))
-      (cond
-       ((table? return)
-	(let ((json-string (table->json-string return)))
-	  (answer-200 "application/json" json-string)))
+					; Serve GET
+    (define (serve-get parsed-path)
+      (let ((return (apply (activate-fnq (table-ref parsed-path 'fnq)) (table-ref parsed-path 'args))))
+	(log "GET" parsed-path)
+	(cond
+	 ((table? return)
+	(answer-OK "application/json" (table->json-string return)))
        ((and (string? return) (zero? (string-length return)))
 	(answer-204))
        ((or (string? return) (number? return))
@@ -111,13 +113,31 @@
 	  (answer-200 "text/plain" return-string)))
        (#t (answer-404)))))
 
+  (define (serve-post parsed-path server-info)
+    (let ((host (cadr server-info))
+	  (user-agent (cadr (list-tail server-info 2)))
+	  (accept (cadr (list-tail server-info 4))))
+      (log "POST" parsed-path "host: " host "\nUser-Agent: " user-agent)
+      (answer-OK "text/plain" "Success" code: "201 Created\n")))
   
   (let* ((headers (read-http-headers))
 	 (request (car headers))
 	 (parsed-path (parse-path (cadr headers))))
     (cond
      ((equal? request "GET") (serve-get parsed-path))
-     ((equal? request "POST") (serve-post parsed-path (read-line connection)))
+     ((equal? request "POST") (serve-post parsed-path (list-tail headers 3)))
      (#t (answer-404)))
     (close-port connection)))
 
+(define (log command parsed-path . specifics)
+  (with-output-to-file (list path: ".server_log" append: #t)
+    (lambda ()
+      (display
+       (string-append (number->string (time->seconds (current-time))) ": \n"
+		      (table-ref parsed-path 'fnq) " " (apply string-append (table-ref parsed-path 'args)) "\n" 
+		      (apply string-append specifics))))))
+
+(define (debug)
+  (#t))
+
+(server)
