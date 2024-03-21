@@ -2,7 +2,7 @@
 
 (export
 	server
-	test)
+	)
 
 (import
 	(gambit)	

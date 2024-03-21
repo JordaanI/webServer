@@ -73,7 +73,7 @@
 		       (map (lambda (a)
 			      (split-string a #\=))
 			    a)))))
-      (list->table `((fnq . ,(eval (string-append ns (car f-a)))) (args ,@args)))))
+      (list->table `((fnq . ,(eval (string->symbol (string-append ns (car f-a))))) (args ,@args)))))
 					; Serve GET
   (define (serve-get parsed-path)
 					; Answer 200
@@ -117,11 +117,7 @@
 	 (parsed-path (parse-path (cadr headers))))
     (cond
      ((equal? request "GET") (serve-get parsed-path))
-     ((equal? request "POST") (serve-post parsed-path (read-line connection))))))
-
-;;;
-;;;;Start Server
-;;;
-
-(server)
+     ((equal? request "POST") (serve-post parsed-path (read-line connection)))
+     (#t (answer-404)))
+    (close-port connection)))
 
