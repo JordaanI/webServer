@@ -45,10 +45,9 @@
     (println "Server Started")
     (let loop ()
       (let ((connection (read server)))
-	;;(thread-start! (make-thread
-	;;(lambda ()
-	(serve connection)
-	;;)))
+	(thread-start! (make-thread
+			(lambda ()
+			  (serve connection))))
 	(loop)))))
 
 ;;;
@@ -247,7 +246,8 @@
     (lambda ()
       (display
        (string-append (number->string (time->seconds (current-time))) ": \n"
-		      (table-ref parsed-path 'fnq) " " (apply string-append (table-ref parsed-path 'args)) "\n" 
+		      (table-ref parsed-path 'fnq) " " (apply string-append (map (lambda (arg)
+										   (if (keyword? arg) (keyword->string arg) arg)) (table-ref parsed-path 'args))) "\n" 
 		      (apply string-append (map (lambda (pair)
 						  (string-append (car pair) " " (cdr pair) "\n")) specifics))
 		      "<=====================================================================================>"
